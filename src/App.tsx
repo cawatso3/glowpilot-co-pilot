@@ -50,6 +50,7 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/onboarding" element={<OnboardingGuard><Onboarding /></OnboardingGuard>} />
+          <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
             <Route path="/dashboard" element={<Dashboard />} />
