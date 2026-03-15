@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Plus, Sparkles, Video, X, Trash2, Pencil, CheckCircle } from 'lucide-react';
+import { Plus, Sparkles, Video, X, Trash2, Pencil, CheckCircle, Upload, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, addDays, startOfWeek, endOfWeek, isSameDay, isWithinInterval } from 'date-fns';
 import type { ContentType, ContentPlatform, ContentStatus, ContentIdea } from '@/types/database';
