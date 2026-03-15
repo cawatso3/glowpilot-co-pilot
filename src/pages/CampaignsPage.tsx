@@ -58,7 +58,9 @@ export default function CampaignsPage() {
   const { user } = useAuth();
   const { campaigns, isLoading, createCampaign, updateCampaign, deleteCampaign } = useCampaigns(user?.id);
   const { clients } = useClients(user?.id);
+  const { isConnected } = useIntegrations(user?.id);
   const { toast } = useToast();
+  const [sendingCampaignId, setSendingCampaignId] = useState<string | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [campaignType, setCampaignType] = useState<CampaignType>('gap_filler');
