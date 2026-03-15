@@ -16,7 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
-import { useState as useS, useEffect } from 'react';
+
 import { Save, LogOut, Calendar, CreditCard, Scissors, Sparkles, Video, Camera, MapPin, MessageSquare, Mail, Brain, ChevronDown, Upload } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { IntegrationCard } from '@/components/integrations/IntegrationCard';
