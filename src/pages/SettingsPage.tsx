@@ -72,7 +72,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (calSettings) {
       setPostsGoal(calSettings.posts_per_week_goal ?? 4);
-      setFilmingDay(calSettings.preferred_filming_day || '');
+      setFilmingDay(calSettings.preferred_filming_day || 'none');
       setContentPillars(calSettings.content_pillars || ['educational', 'transformation', 'behind_the_scenes', 'promotional']);
       const times = calSettings.preferred_posting_times as Record<string, string> | null;
       setTiktokTime(times?.tiktok || '');
@@ -92,7 +92,7 @@ export default function SettingsPage() {
 
     await upsertSettings.mutateAsync({
       posts_per_week_goal: postsGoal,
-      preferred_filming_day: filmingDay || null,
+      preferred_filming_day: filmingDay === 'none' ? null : filmingDay,
       content_pillars: contentPillars,
       preferred_posting_times: Object.keys(postingTimes).length > 0 ? postingTimes : null,
     });
@@ -183,7 +183,7 @@ export default function SettingsPage() {
                 <Select value={filmingDay} onValueChange={setFilmingDay}>
                   <SelectTrigger><SelectValue placeholder="No preference" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No preference</SelectItem>
+                    <SelectItem value="none">No preference</SelectItem>
                     {DAYS_OF_WEEK.map(d => <SelectItem key={d} value={d.toLowerCase()}>{d}</SelectItem>)}
                   </SelectContent>
                 </Select>
