@@ -11,9 +11,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, MessageSquare, Calendar, Star, StickyNote } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Plus, Search, MessageSquare, Calendar, Star, X } from 'lucide-react';
 import { format } from 'date-fns';
-import type { Client, ClientStatus } from '@/types/database';
+import type { Client, ClientStatus, Appointment, CampaignMessage, Review } from '@/types/database';
 
 const STATUS_STYLES: Record<ClientStatus, string> = {
   active: 'bg-green-100 text-green-700',
@@ -24,17 +26,64 @@ const STATUS_STYLES: Record<ClientStatus, string> = {
 
 export default function ClientsPage() {
   const { user } = useAuth();
-  const { clients, isLoading, createClient } = useClients(user?.id);
+  const { clients, isLoading, createClient, updateClient } = useClients(user?.id);
   const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newClient, setNewClient] = useState({ full_name: '', email: '', phone: '', last_service: '', notes: '', referral_source: '' });
+  const [editNotes, setEditNotes] = useState('');
+  const [notesModified, setNotesModified] = useState(false);
+  const [newTag, setNewTag] = useState('');
 
   const filtered = clients
     .filter(c => statusFilter === 'all' || c.status === statusFilter)
     .filter(c => c.full_name.toLowerCase().includes(search.toLowerCase()));
+
+  // Client detail queries
+  const clientId = selectedClient?.id;
+  const { data: clientAppointments = [] } = useQuery({
+    queryKey: ['client_appointments', clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('client_id', clientId!)
+        .order('appointment_date', { ascending: false });
+      if (error) throw error;
+      return data as Appointment[];
+    },
+    enabled: !!clientId,
+  });
+
+  const { data: clientMessages = [] } = useQuery({
+    queryKey: ['client_messages', clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('campaign_messages')
+        .select('*')
+        .eq('client_id', clientId!)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as CampaignMessage[];
+    },
+    enabled: !!clientId,
+  });
+
+  const { data: clientReviews = [] } = useQuery({
+    queryKey: ['client_reviews', clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select('*')
+        .eq('client_id', clientId!)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as Review[];
+    },
+    enabled: !!clientId,
+  });
 
   const handleCreate = async () => {
     if (!newClient.full_name) return;
@@ -42,6 +91,38 @@ export default function ClientsPage() {
     setNewClient({ full_name: '', email: '', phone: '', last_service: '', notes: '', referral_source: '' });
     setDialogOpen(false);
     toast({ title: 'Client added!' });
+  };
+
+  const handleSelectClient = (c: Client) => {
+    setSelectedClient(c);
+    setEditNotes(c.notes || '');
+    setNotesModified(false);
+    setNewTag('');
+  };
+
+  const handleSaveNotes = async () => {
+    if (!selectedClient) return;
+    await updateClient.mutateAsync({ id: selectedClient.id, notes: editNotes });
+    setSelectedClient({ ...selectedClient, notes: editNotes });
+    setNotesModified(false);
+    toast({ title: 'Notes saved!' });
+  };
+
+  const handleAddTag = async () => {
+    if (!selectedClient || !newTag.trim()) return;
+    const tags = [...(selectedClient.tags || []), newTag.trim()];
+    await updateClient.mutateAsync({ id: selectedClient.id, tags });
+    setSelectedClient({ ...selectedClient, tags });
+    setNewTag('');
+    toast({ title: 'Tag added!' });
+  };
+
+  const handleRemoveTag = async (tag: string) => {
+    if (!selectedClient) return;
+    const tags = (selectedClient.tags || []).filter(t => t !== tag);
+    await updateClient.mutateAsync({ id: selectedClient.id, tags });
+    setSelectedClient({ ...selectedClient, tags });
+    toast({ title: 'Tag removed' });
   };
 
   if (isLoading) return <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-lg" />)}</div>;
@@ -69,7 +150,6 @@ export default function ClientsPage() {
         </Dialog>
       </div>
 
-      {/* Search & Filters */}
       <div className="flex gap-3 items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -84,13 +164,12 @@ export default function ClientsPage() {
         ))}
       </div>
 
-      {/* Client List */}
       {filtered.length === 0 ? (
         <Card className="border-none shadow-low"><CardContent className="p-8 text-center text-muted-foreground">No clients found. Add your first client to get started!</CardContent></Card>
       ) : (
         <div className="space-y-2">
           {filtered.map(client => (
-            <Card key={client.id} className="border-none shadow-low hover:shadow-mid transition-all cursor-pointer" onClick={() => setSelectedClient(client)}>
+            <Card key={client.id} className="border-none shadow-low hover:shadow-mid transition-all cursor-pointer" onClick={() => handleSelectClient(client)}>
               <CardContent className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary">
@@ -114,7 +193,6 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {/* Client Detail Sheet */}
       <Sheet open={!!selectedClient} onOpenChange={() => setSelectedClient(null)}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto">
           {selectedClient && (
@@ -148,21 +226,105 @@ export default function ClientsPage() {
                 <p className="text-sm text-muted-foreground">{selectedClient.phone || '—'}</p>
               </div>
 
-              {selectedClient.tags && selectedClient.tags.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="font-medium text-sm">Tags</h3>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedClient.tags.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
-                  </div>
+              {/* Tags */}
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm">Tags</h3>
+                <div className="flex flex-wrap gap-1">
+                  {(selectedClient.tags || []).map(tag => (
+                    <Badge key={tag} variant="outline" className="text-xs gap-1">
+                      {tag}
+                      <button onClick={() => handleRemoveTag(tag)} className="ml-1 hover:text-destructive"><X className="h-3 w-3" /></button>
+                    </Badge>
+                  ))}
                 </div>
-              )}
+                <div className="flex gap-2">
+                  <Input value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder="Add tag..." className="h-8 text-xs" onKeyDown={(e) => { if (e.key === 'Enter') handleAddTag(); }} />
+                  <Button variant="outline" size="sm" onClick={handleAddTag} disabled={!newTag.trim()}>Add</Button>
+                </div>
+              </div>
 
-              {selectedClient.notes && (
-                <div className="space-y-2">
-                  <h3 className="font-medium text-sm">Notes</h3>
-                  <p className="text-sm text-muted-foreground">{selectedClient.notes}</p>
-                </div>
-              )}
+              {/* Notes */}
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm">Notes</h3>
+                <Textarea
+                  value={editNotes}
+                  onChange={(e) => { setEditNotes(e.target.value); setNotesModified(true); }}
+                  placeholder="Add notes about this client..."
+                  rows={3}
+                />
+                {notesModified && (
+                  <Button size="sm" onClick={handleSaveNotes} disabled={updateClient.isPending}>Save Notes</Button>
+                )}
+              </div>
+
+              {/* Visit History */}
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm">Visit History</h3>
+                {clientAppointments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No visit history yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    {clientAppointments.map(a => (
+                      <div key={a.id} className="flex items-center justify-between text-xs p-2 rounded-lg bg-muted/30">
+                        <div>
+                          <p className="font-medium">{format(new Date(a.appointment_date), 'MMM d, yyyy')}</p>
+                          <p className="text-muted-foreground">{a.service_name || 'Service'}</p>
+                        </div>
+                        <div className="text-right">
+                          {a.service_price && <p className="font-medium">${Number(a.service_price).toFixed(0)}</p>}
+                          <Badge variant="outline" className="text-xs capitalize">{a.status}</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Messages */}
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm">Messages</h3>
+                {clientMessages.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No messages sent yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    {clientMessages.map(m => (
+                      <div key={m.id} className="text-xs p-2 rounded-lg bg-muted/30 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <Badge variant="outline" className="text-xs capitalize">{m.channel}</Badge>
+                          <Badge variant="outline" className="text-xs capitalize">{m.status}</Badge>
+                        </div>
+                        <p className="text-muted-foreground line-clamp-2">{m.message_body}</p>
+                        <p className="text-muted-foreground">{format(new Date(m.created_at), 'MMM d, yyyy')}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Reviews */}
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm">Reviews</h3>
+                {clientReviews.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No reviews from this client yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    {clientReviews.map(r => (
+                      <div key={r.id} className="text-xs p-2 rounded-lg bg-muted/30 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star key={i} className={`h-3 w-3 ${i < (r.rating || 0) ? 'text-warning fill-warning' : 'text-muted'}`} />
+                            ))}
+                          </div>
+                          <Badge variant="outline" className="text-xs capitalize">{r.platform}</Badge>
+                        </div>
+                        {r.review_text && <p className="text-muted-foreground">{r.review_text}</p>}
+                        {r.review_date && <p className="text-muted-foreground">{format(new Date(r.review_date), 'MMM d, yyyy')}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </SheetContent>

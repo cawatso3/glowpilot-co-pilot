@@ -1,16 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useReviews } from '@/hooks/useReviews';
+import { useClients } from '@/hooks/useClients';
+import { useReviewRequestSettings } from '@/hooks/useReviewRequestSettings';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Star, Sparkles, Send, CheckCircle, AlertCircle } from 'lucide-react';
-import { format } from 'date-fns';
+import { Star, Sparkles, Send, CheckCircle, AlertCircle, TrendingUp, TrendingDown, Minus, Save } from 'lucide-react';
+import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import type { ReviewPlatform } from '@/types/database';
 
 const PLATFORM_COLORS: Record<ReviewPlatform, string> = {
@@ -23,10 +28,30 @@ const PLATFORM_COLORS: Record<ReviewPlatform, string> = {
 
 export default function ReviewsPage() {
   const { user } = useAuth();
-  const { reviews, isLoading, updateReview } = useReviews(user?.id);
+  const { reviews, isLoading, createReview, updateReview } = useReviews(user?.id);
+  const { clients } = useClients(user?.id);
+  const { settings, isLoading: settingsLoading, upsertSettings } = useReviewRequestSettings(user?.id);
   const { toast } = useToast();
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [responseText, setResponseText] = useState('');
+  const [manualRequestOpen, setManualRequestOpen] = useState(false);
+  const [requestClientId, setRequestClientId] = useState('');
+  const [requestPlatform, setRequestPlatform] = useState('google');
+
+  // Settings form
+  const [autoRequest, setAutoRequest] = useState(true);
+  const [delayHours, setDelayHours] = useState('2');
+  const [messageTemplate, setMessageTemplate] = useState('');
+  const [preferredPlatform, setPreferredPlatform] = useState('google');
+
+  useEffect(() => {
+    if (settings) {
+      setAutoRequest(settings.auto_request_enabled);
+      setDelayHours(String(settings.delay_after_appointment_hours));
+      setMessageTemplate(settings.message_template);
+      setPreferredPlatform(settings.preferred_platform);
+    }
+  }, [settings]);
 
   const avgRating = reviews.filter(r => r.rating).length > 0
     ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.filter(r => r.rating).length).toFixed(1)
@@ -38,11 +63,51 @@ export default function ReviewsPage() {
     return acc;
   }, {} as Record<string, number>);
 
+  // Month-over-month trend
+  const now = new Date();
+  const thisMonthStart = startOfMonth(now);
+  const thisMonthEnd = endOfMonth(now);
+  const lastMonthStart = startOfMonth(subMonths(now, 1));
+  const lastMonthEnd = endOfMonth(subMonths(now, 1));
+  const thisMonthCount = reviews.filter(r => r.review_date && isWithinInterval(new Date(r.review_date), { start: thisMonthStart, end: thisMonthEnd })).length;
+  const lastMonthCount = reviews.filter(r => r.review_date && isWithinInterval(new Date(r.review_date), { start: lastMonthStart, end: lastMonthEnd })).length;
+  const trendDelta = thisMonthCount - lastMonthCount;
+
+  const sentRequests = reviews.filter(r => r.review_request_sent).sort((a, b) => {
+    const da = a.request_sent_at || a.created_at;
+    const db = b.request_sent_at || b.created_at;
+    return new Date(db).getTime() - new Date(da).getTime();
+  });
+
   const handleRespond = async (reviewId: string) => {
     await updateReview.mutateAsync({ id: reviewId, response_text: responseText, responded_at: new Date().toISOString() });
     setRespondingTo(null);
     setResponseText('');
     toast({ title: 'Response saved!' });
+  };
+
+  const handleSaveSettings = async () => {
+    await upsertSettings.mutateAsync({
+      auto_request_enabled: autoRequest,
+      delay_after_appointment_hours: parseInt(delayHours) || 2,
+      message_template: messageTemplate,
+      preferred_platform: preferredPlatform,
+    });
+    toast({ title: 'Settings saved!' });
+  };
+
+  const handleSendManualRequest = async () => {
+    const client = clients.find(c => c.id === requestClientId);
+    await createReview.mutateAsync({
+      client_id: requestClientId || null,
+      platform: requestPlatform as ReviewPlatform,
+      reviewer_name: client?.full_name || null,
+      review_request_sent: true,
+      request_sent_at: new Date().toISOString(),
+    } as any);
+    setManualRequestOpen(false);
+    setRequestClientId('');
+    toast({ title: 'Review request sent!', description: 'The request has been recorded. Actual sending will be connected in a future update.' });
   };
 
   if (isLoading) return <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-28 rounded-lg" />)}</div>;
@@ -74,14 +139,14 @@ export default function ReviewsPage() {
           </CardContent>
         </Card>
         <Card className="border-none shadow-low">
-          <CardContent className="p-4">
-            <div className="flex flex-wrap gap-1">
-              {Object.entries(platformCounts).map(([p, count]) => (
-                <Badge key={p} className={`${PLATFORM_COLORS[p as ReviewPlatform]} text-xs capitalize border-none`}>
-                  {p}: {count}
-                </Badge>
-              ))}
+          <CardContent className="p-4 text-center">
+            <div className="flex items-center justify-center gap-1 text-xl font-display font-semibold">
+              {thisMonthCount}
+              {trendDelta > 0 && <TrendingUp className="h-5 w-5 text-green-600" />}
+              {trendDelta < 0 && <TrendingDown className="h-5 w-5 text-red-600" />}
+              {trendDelta === 0 && <Minus className="h-5 w-5 text-muted-foreground" />}
             </div>
+            <p className="text-xs text-muted-foreground">This month ({trendDelta >= 0 ? '+' : ''}{trendDelta} vs last)</p>
           </CardContent>
         </Card>
       </div>
@@ -115,7 +180,6 @@ export default function ReviewsPage() {
                   </div>
                 </div>
 
-                {/* Stars */}
                 <div className="flex gap-0.5">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Star key={i} className={`h-4 w-4 ${i < (review.rating || 0) ? 'text-warning fill-warning' : 'text-muted'}`} />
@@ -151,21 +215,114 @@ export default function ReviewsPage() {
         )}
       </div>
 
-      {/* Review Requests */}
+      {/* Review Request Settings */}
       <div className="space-y-3">
-        <h2 className="font-display text-lg font-semibold">Review Requests</h2>
-        <Card className="border-none shadow-low">
-          <CardContent className="p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm">Auto-request after appointments</Label>
-              <Switch defaultChecked onCheckedChange={() => toast({ title: 'Coming soon', description: 'Auto-request will be configured in the next update.' })} />
-            </div>
-            <Button variant="outline" size="sm" onClick={() => toast({ title: 'Coming soon', description: 'Manual review requests will be available in the next update.' })}>
-              <Send className="h-4 w-4" /> Send Manual Request
-            </Button>
-          </CardContent>
-        </Card>
+        <h2 className="font-display text-lg font-semibold">Review Request Settings</h2>
+        {settingsLoading ? (
+          <Skeleton className="h-40 rounded-lg" />
+        ) : (
+          <Card className="border-none shadow-low">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Auto-request after appointments</Label>
+                <Switch checked={autoRequest} onCheckedChange={setAutoRequest} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Delay after appointment (hours)</Label>
+                <Input type="number" value={delayHours} onChange={(e) => setDelayHours(e.target.value)} className="w-24" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Message template</Label>
+                <Textarea value={messageTemplate} onChange={(e) => setMessageTemplate(e.target.value)} rows={3} />
+                <p className="text-xs text-muted-foreground">Variables: {'{client_name}'}, {'{review_link}'}</p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Preferred platform</Label>
+                <Select value={preferredPlatform} onValueChange={setPreferredPlatform}>
+                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="google">Google</SelectItem>
+                    <SelectItem value="yelp">Yelp</SelectItem>
+                    <SelectItem value="facebook">Facebook</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button size="sm" onClick={handleSaveSettings} disabled={upsertSettings.isPending}>
+                <Save className="h-4 w-4" /> Save Settings
+              </Button>
+            </CardContent>
+          </Card>
+        )}
       </div>
+
+      {/* Send Manual Request */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-lg font-semibold">Sent Requests</h2>
+          <Button variant="outline" size="sm" onClick={() => setManualRequestOpen(true)}>
+            <Send className="h-4 w-4" /> Send Manual Request
+          </Button>
+        </div>
+        {sentRequests.length === 0 ? (
+          <Card className="border-none shadow-low"><CardContent className="p-4 text-center text-sm text-muted-foreground">No review requests sent yet</CardContent></Card>
+        ) : (
+          <div className="space-y-2">
+            {sentRequests.map(r => (
+              <Card key={r.id} className="border-none shadow-low">
+                <CardContent className="flex items-center justify-between p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{r.reviewer_name || 'Unknown'}</span>
+                    <Badge className={`${PLATFORM_COLORS[r.platform as ReviewPlatform]} text-xs capitalize border-none`}>{r.platform}</Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{r.request_sent_at ? format(new Date(r.request_sent_at), 'MMM d') : '—'}</span>
+                    <Badge variant="outline" className="text-xs">{r.rating ? 'Review Received' : 'Awaiting Review'}</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Manual Request Dialog */}
+      <Dialog open={manualRequestOpen} onOpenChange={setManualRequestOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Send Review Request</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Client</Label>
+              <Select value={requestClientId} onValueChange={setRequestClientId}>
+                <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
+                <SelectContent>
+                  {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Platform</Label>
+              <Select value={requestPlatform} onValueChange={setRequestPlatform}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="google">Google</SelectItem>
+                  <SelectItem value="yelp">Yelp</SelectItem>
+                  <SelectItem value="facebook">Facebook</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {requestClientId && messageTemplate && (
+              <Card className="border-none bg-muted/50">
+                <CardContent className="p-3 text-sm">
+                  {messageTemplate.replace('{client_name}', clients.find(c => c.id === requestClientId)?.full_name || 'Client')}
+                </CardContent>
+              </Card>
+            )}
+            <Button onClick={handleSendManualRequest} className="w-full" disabled={!requestClientId || createReview.isPending}>
+              <Send className="h-4 w-4" /> Send Request
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
