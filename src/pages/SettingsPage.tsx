@@ -92,7 +92,7 @@ export default function SettingsPage() {
 
     await upsertSettings.mutateAsync({
       posts_per_week_goal: postsGoal,
-      preferred_filming_day: filmingDay || null,
+      preferred_filming_day: filmingDay === 'none' ? null : filmingDay,
       content_pillars: contentPillars,
       preferred_posting_times: Object.keys(postingTimes).length > 0 ? postingTimes : null,
     });
