@@ -5,10 +5,13 @@ import { useClients } from '@/hooks/useClients';
 import { useAppointments } from '@/hooks/useAppointments';
 import { useCalendarGaps } from '@/hooks/useCalendarGaps';
 import { useReviews } from '@/hooks/useReviews';
+import { useIntegrations } from '@/hooks/useIntegrations';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CalendarDays, CalendarClock, Star, Users, Smartphone, MessageSquare, RefreshCw } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { CalendarDays, CalendarClock, Star, Users, Smartphone, MessageSquare, RefreshCw, Link as LinkIcon } from 'lucide-react';
 import { format, isToday, addDays, startOfWeek, isSameDay } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
@@ -20,7 +23,11 @@ export default function Dashboard() {
   const { appointments } = useAppointments(user?.id);
   const { gaps } = useCalendarGaps(user?.id);
   const { reviews } = useReviews(user?.id);
+  const { isConnected } = useIntegrations(user?.id);
   const navigate = useNavigate();
+
+  const hasBooking = isConnected('acuity') || isConnected('square') || isConnected('vagaro');
+  const hasMessaging = isConnected('twilio') || isConnected('resend');
 
   const todayAppts = appointments.filter(a => isToday(new Date(a.appointment_date)) && a.status === 'booked');
   const nextAppt = todayAppts[0];
@@ -62,6 +69,21 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Connection status banners */}
+      {!hasBooking && (
+        <Alert>
+          <LinkIcon className="h-4 w-4" />
+          <AlertTitle>Connect your booking platform</AlertTitle>
+          <AlertDescription className="flex items-center justify-between">
+            <span>Link Acuity, Square, or Vagaro to unlock automatic gap detection and client sync.</span>
+            <Button size="sm" variant="outline" onClick={() => navigate('/settings')} className="ml-3 shrink-0">Go to Settings</Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      {!hasMessaging && (
+        <p className="text-sm text-muted-foreground">💡 Connect Twilio or Resend in Settings to start sending campaigns.</p>
+      )}
+
       <h1 className="text-2xl font-semibold">
         {profile?.full_name ? `Good ${new Date().getHours() < 12 ? 'morning' : 'afternoon'}, ${profile.full_name.split(' ')[0]}` : 'Dashboard'}
       </h1>
@@ -94,11 +116,7 @@ export default function Dashboard() {
         ) : (
           <div className="space-y-2">
             {actionItems.map((item, i) => (
-              <Card
-                key={i}
-                className="bg-card border-none shadow-low hover:shadow-mid cursor-pointer transition-all hover:-translate-y-0.5"
-                onClick={item.action}
-              >
+              <Card key={i} className="bg-card border-none shadow-low hover:shadow-mid cursor-pointer transition-all hover:-translate-y-0.5" onClick={item.action}>
                 <CardContent className="flex items-center gap-3 p-3">
                   <item.icon className="h-5 w-5 text-primary flex-shrink-0" />
                   <span className="text-sm">{item.text}</span>

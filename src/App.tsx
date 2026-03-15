@@ -16,6 +16,7 @@ import ClientsPage from "./pages/ClientsPage";
 import CampaignsPage from "./pages/CampaignsPage";
 import ReviewsPage from "./pages/ReviewsPage";
 import SettingsPage from "./pages/SettingsPage";
+import OAuthCallback from "./pages/OAuthCallback";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,6 +50,7 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/onboarding" element={<OnboardingGuard><Onboarding /></OnboardingGuard>} />
+          <Route path="/auth/callback/:provider" element={<OAuthCallback />} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
             <Route path="/dashboard" element={<Dashboard />} />

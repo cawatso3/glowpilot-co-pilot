@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useReviews } from '@/hooks/useReviews';
 import { useClients } from '@/hooks/useClients';
 import { useReviewRequestSettings } from '@/hooks/useReviewRequestSettings';
+import { useIntegrations } from '@/hooks/useIntegrations';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,12 +11,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Star, Sparkles, Send, CheckCircle, AlertCircle, TrendingUp, TrendingDown, Minus, Save } from 'lucide-react';
-import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
+import { Star, Sparkles, Send, CheckCircle, AlertCircle, TrendingUp, TrendingDown, Minus, Save, RefreshCw, Loader2 } from 'lucide-react';
+import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, formatDistanceToNow } from 'date-fns';
 import type { ReviewPlatform } from '@/types/database';
 
 const PLATFORM_COLORS: Record<ReviewPlatform, string> = {
@@ -31,7 +34,10 @@ export default function ReviewsPage() {
   const { reviews, isLoading, createReview, updateReview } = useReviews(user?.id);
   const { clients } = useClients(user?.id);
   const { settings, isLoading: settingsLoading, upsertSettings } = useReviewRequestSettings(user?.id);
+  const { isConnected, getIntegration } = useIntegrations(user?.id);
   const { toast } = useToast();
+  const [syncingReviews, setSyncingReviews] = useState(false);
+  const [postToGoogle, setPostToGoogle] = useState(false);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [responseText, setResponseText] = useState('');
   const [manualRequestOpen, setManualRequestOpen] = useState(false);
@@ -81,9 +87,30 @@ export default function ReviewsPage() {
 
   const handleRespond = async (reviewId: string) => {
     await updateReview.mutateAsync({ id: reviewId, response_text: responseText, responded_at: new Date().toISOString() });
+    if (postToGoogle && isConnected('google_business')) {
+      try {
+        await supabase.functions.invoke('reply-gbp-review', { body: { review_id: reviewId, response_text: responseText } });
+      } catch (err: any) {
+        toast({ title: 'Could not post to Google', description: err.message, variant: 'destructive' });
+      }
+    }
     setRespondingTo(null);
     setResponseText('');
+    setPostToGoogle(false);
     toast({ title: 'Response saved!' });
+  };
+
+  const handleSyncReviews = async () => {
+    setSyncingReviews(true);
+    try {
+      const { error } = await supabase.functions.invoke('sync-gbp-reviews', { body: { user_id: user?.id } });
+      if (error) throw error;
+      toast({ title: 'Reviews synced!' });
+    } catch (err: any) {
+      toast({ title: 'Sync failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setSyncingReviews(false);
+    }
   };
 
   const handleSaveSettings = async () => {
@@ -153,7 +180,21 @@ export default function ReviewsPage() {
 
       {/* Review Feed */}
       <div className="space-y-3">
-        <h2 className="font-display text-lg font-semibold">Review Feed</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-lg font-semibold">Review Feed</h2>
+          {isConnected('google_business') && (
+            <div className="flex items-center gap-2">
+              {getIntegration('google_business')?.last_sync_at && (
+                <span className="text-xs text-muted-foreground">
+                  Synced {formatDistanceToNow(new Date(getIntegration('google_business')!.last_sync_at!), { addSuffix: true })}
+                </span>
+              )}
+              <Button variant="outline" size="sm" onClick={handleSyncReviews} disabled={syncingReviews}>
+                {syncingReviews ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Sync Reviews
+              </Button>
+            </div>
+          )}
+        </div>
         {reviews.length === 0 ? (
           <Card className="border-none shadow-low"><CardContent className="p-8 text-center text-muted-foreground">No reviews yet. Send review requests after appointments to start building your reputation!</CardContent></Card>
         ) : (
@@ -196,6 +237,12 @@ export default function ReviewsPage() {
                 ) : respondingTo === review.id ? (
                   <div className="space-y-2">
                     <Textarea value={responseText} onChange={(e) => setResponseText(e.target.value)} placeholder="Write your response..." rows={3} />
+                    {isConnected('google_business') && (
+                      <label className="flex items-center gap-2 text-xs">
+                        <Checkbox checked={postToGoogle} onCheckedChange={(c) => setPostToGoogle(!!c)} />
+                        Post response to Google Business
+                      </label>
+                    )}
                     <div className="flex gap-2">
                       <Button size="sm" onClick={() => handleRespond(review.id)} disabled={updateReview.isPending || !responseText}>
                         <Send className="h-4 w-4" /> Send

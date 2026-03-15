@@ -2,10 +2,12 @@ import { useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCampaigns } from '@/hooks/useCampaigns';
 import { useClients } from '@/hooks/useClients';
+import { useIntegrations } from '@/hooks/useIntegrations';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
@@ -17,7 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, CalendarClock, Users, Gift, Cake, Send, Megaphone, Pause, Play, Copy, Trash2 } from 'lucide-react';
+import { Plus, CalendarClock, Users, Gift, Cake, Send, Megaphone, Pause, Play, Copy, Trash2, AlertCircle, Loader2 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import type { CampaignType, CampaignStatus, ReactivationCampaign, CampaignMessage } from '@/types/database';
 
@@ -56,7 +58,9 @@ export default function CampaignsPage() {
   const { user } = useAuth();
   const { campaigns, isLoading, createCampaign, updateCampaign, deleteCampaign } = useCampaigns(user?.id);
   const { clients } = useClients(user?.id);
+  const { isConnected } = useIntegrations(user?.id);
   const { toast } = useToast();
+  const [sendingCampaignId, setSendingCampaignId] = useState<string | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [campaignType, setCampaignType] = useState<CampaignType>('gap_filler');
@@ -172,6 +176,27 @@ export default function CampaignsPage() {
     await deleteCampaign.mutateAsync(selectedCampaign.id);
     setSelectedCampaign(null);
     toast({ title: 'Campaign deleted' });
+  };
+
+  const handleSendCampaign = async (campaignId: string, campaignChannel: string) => {
+    const hasSms = isConnected('twilio');
+    const hasEmail = isConnected('resend');
+    const needsSms = campaignChannel === 'sms' || campaignChannel === 'both';
+    const needsEmail = campaignChannel === 'email' || campaignChannel === 'both';
+    if ((needsSms && !hasSms) || (needsEmail && !hasEmail)) {
+      toast({ title: 'Coming soon', description: 'Connect the required messaging service in Settings first.' });
+      return;
+    }
+    setSendingCampaignId(campaignId);
+    try {
+      const { error } = await supabase.functions.invoke('execute-campaign', { body: { campaign_id: campaignId } });
+      if (error) throw error;
+      toast({ title: `Campaign sent to ${filteredClients.length} clients!` });
+    } catch (err: any) {
+      toast({ title: 'Send failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setSendingCampaignId(null);
+    }
   };
 
   if (isLoading) return <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-28 rounded-lg" />)}</div>;
@@ -333,9 +358,23 @@ export default function CampaignsPage() {
                   </p>
                 )}
               </div>
+              {/* Channel validation warnings */}
+              {(channel === 'sms' || channel === 'both') && !isConnected('twilio') && (
+                <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>Connect Twilio in Settings to send SMS campaigns.</AlertDescription></Alert>
+              )}
+              {(channel === 'email' || channel === 'both') && !isConnected('resend') && (
+                <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>Connect Resend in Settings to send email campaigns.</AlertDescription></Alert>
+              )}
               <div className="flex gap-3">
                 <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
-                <Button onClick={() => setStep(4)} className="flex-1">Next</Button>
+                <Button
+                  onClick={() => setStep(4)}
+                  className="flex-1"
+                  disabled={
+                    ((channel === 'sms' || channel === 'both') && !isConnected('twilio')) ||
+                    ((channel === 'email' || channel === 'both') && !isConnected('resend'))
+                  }
+                >Next</Button>
               </div>
             </div>
           )}

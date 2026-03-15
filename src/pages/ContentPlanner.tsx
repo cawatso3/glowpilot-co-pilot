@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useContentIdeas } from '@/hooks/useContentIdeas';
 import { useContentCalendarSettings } from '@/hooks/useContentCalendarSettings';
+import { useIntegrations } from '@/hooks/useIntegrations';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -15,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Plus, Sparkles, Video, X, Trash2, Pencil, CheckCircle } from 'lucide-react';
+import { Plus, Sparkles, Video, X, Trash2, Pencil, CheckCircle, Upload, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format, addDays, startOfWeek, endOfWeek, isSameDay, isWithinInterval } from 'date-fns';
 import type { ContentType, ContentPlatform, ContentStatus, ContentIdea } from '@/types/database';
@@ -65,6 +67,7 @@ export default function ContentPlanner() {
   const { user } = useAuth();
   const { ideas, isLoading, createIdea, updateIdea, deleteIdea } = useContentIdeas(user?.id);
   const { settings: calSettings } = useContentCalendarSettings(user?.id);
+  const { isConnected } = useIntegrations(user?.id);
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
@@ -273,6 +276,20 @@ export default function ContentPlanner() {
                           )}
                           {idea.scheduled_date && (
                             <p className="text-xs text-muted-foreground">📅 Scheduled: {format(new Date(idea.scheduled_date), 'MMM d, yyyy')}{idea.scheduled_time ? ` at ${idea.scheduled_time}` : ''}</p>
+                          )}
+                          {/* Publish buttons */}
+                          {idea.status === 'scheduled' && idea.scheduled_date && (
+                            <div className="flex gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
+                              {isConnected('tiktok') && (idea.platform === 'tiktok' || idea.platform === 'all') && (
+                                <PublishButton label="Upload to TikTok" fnName="upload-tiktok-draft" ideaId={idea.id} successMsg="Uploaded as draft to TikTok! Open the app to publish." />
+                              )}
+                              {isConnected('instagram') && (idea.platform === 'instagram' || idea.platform === 'all') && (
+                                <PublishButton label="Publish to Instagram" fnName="publish-instagram" ideaId={idea.id} successMsg="Published to Instagram!" />
+                              )}
+                              {isConnected('google_business') && (idea.platform === 'google_business' || idea.platform === 'all') && (
+                                <PublishButton label="Post to Google" fnName="publish-gbp-post" ideaId={idea.id} successMsg="Posted to Google Business!" />
+                              )}
+                            </div>
                           )}
                           <div className="flex items-center gap-2 pt-1" onClick={e => e.stopPropagation()}>
                             <Button variant="outline" size="sm" onClick={() => openDialog(idea)}>
@@ -541,6 +558,28 @@ export default function ContentPlanner() {
         </SheetContent>
       </Sheet>
     </div>
+  );
+}
+
+function PublishButton({ label, fnName, ideaId, successMsg }: { label: string; fnName: string; ideaId: string; successMsg: string }) {
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+  const handlePublish = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.functions.invoke(fnName, { body: { content_idea_id: ideaId } });
+      if (error) throw error;
+      toast({ title: successMsg });
+    } catch (err: any) {
+      toast({ title: 'Publish failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <Button variant="outline" size="sm" onClick={handlePublish} disabled={loading}>
+      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />} {label}
+    </Button>
   );
 }
 
