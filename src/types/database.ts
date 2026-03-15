@@ -13,6 +13,37 @@ export type MessageStatus = 'pending' | 'sent' | 'delivered' | 'failed' | 'click
 export type ReviewPlatform = 'google' | 'yelp' | 'facebook' | 'instagram' | 'other';
 export type GapStatus = 'open' | 'campaign_sent' | 'filled' | 'ignored';
 
+export type IntegrationProvider = 'acuity' | 'square' | 'vagaro' | 'tiktok' | 'instagram' | 'google_business' | 'twilio' | 'resend';
+export type IntegrationStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+export type SyncType = 'appointments' | 'clients' | 'reviews' | 'content_publish' | 'gap_detection';
+export type SyncStatus = 'running' | 'completed' | 'failed';
+
+export interface Integration {
+  id: string;
+  user_id: string;
+  provider: IntegrationProvider;
+  status: IntegrationStatus;
+  credentials: Record<string, unknown> | null;
+  display_name: string | null;
+  last_sync_at: string | null;
+  last_error: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SyncLog {
+  id: string;
+  user_id: string;
+  provider: string;
+  sync_type: SyncType;
+  status: SyncStatus;
+  records_synced: number;
+  error_message: string | null;
+  started_at: string;
+  completed_at: string | null;
+}
+
 export interface Profile {
   id: string;
   full_name: string | null;
