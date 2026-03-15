@@ -24,7 +24,7 @@ export function useContentIdeas(userId: string | undefined) {
     mutationFn: async (idea: Partial<ContentIdea>) => {
       const { data, error } = await supabase
         .from('content_ideas')
-        .insert({ ...idea, user_id: userId! })
+        .insert({ ...idea, user_id: userId! } as any)
         .select()
         .single();
       if (error) throw error;

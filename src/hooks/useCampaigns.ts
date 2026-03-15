@@ -37,7 +37,7 @@ export function useCampaigns(userId: string | undefined) {
     mutationFn: async ({ id, ...updates }: Partial<ReactivationCampaign> & { id: string }) => {
       const { data, error } = await supabase
         .from('reactivation_campaigns')
-        .update(updates)
+        .update(updates as any)
         .eq('id', id)
         .select()
         .single();
