@@ -337,9 +337,23 @@ export default function CampaignsPage() {
                   </p>
                 )}
               </div>
+              {/* Channel validation warnings */}
+              {(channel === 'sms' || channel === 'both') && !isConnected('twilio') && (
+                <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>Connect Twilio in Settings to send SMS campaigns.</AlertDescription></Alert>
+              )}
+              {(channel === 'email' || channel === 'both') && !isConnected('resend') && (
+                <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>Connect Resend in Settings to send email campaigns.</AlertDescription></Alert>
+              )}
               <div className="flex gap-3">
                 <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
-                <Button onClick={() => setStep(4)} className="flex-1">Next</Button>
+                <Button
+                  onClick={() => setStep(4)}
+                  className="flex-1"
+                  disabled={
+                    ((channel === 'sms' || channel === 'both') && !isConnected('twilio')) ||
+                    ((channel === 'email' || channel === 'both') && !isConnected('resend'))
+                  }
+                >Next</Button>
               </div>
             </div>
           )}
