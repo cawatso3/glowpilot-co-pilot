@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "mcp-lite": "npm:mcp-lite@latest",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2"
+  }
+}
