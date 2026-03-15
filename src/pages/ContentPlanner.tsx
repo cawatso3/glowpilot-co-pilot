@@ -66,6 +66,7 @@ export default function ContentPlanner() {
   const { user } = useAuth();
   const { ideas, isLoading, createIdea, updateIdea, deleteIdea } = useContentIdeas(user?.id);
   const { settings: calSettings } = useContentCalendarSettings(user?.id);
+  const { isConnected } = useIntegrations(user?.id);
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
