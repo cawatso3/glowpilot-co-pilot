@@ -183,7 +183,7 @@ export default function SettingsPage() {
                 <Select value={filmingDay} onValueChange={setFilmingDay}>
                   <SelectTrigger><SelectValue placeholder="No preference" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No preference</SelectItem>
+                    <SelectItem value="none">No preference</SelectItem>
                     {DAYS_OF_WEEK.map(d => <SelectItem key={d} value={d.toLowerCase()}>{d}</SelectItem>)}
                   </SelectContent>
                 </Select>
