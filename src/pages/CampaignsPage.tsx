@@ -178,6 +178,27 @@ export default function CampaignsPage() {
     toast({ title: 'Campaign deleted' });
   };
 
+  const handleSendCampaign = async (campaignId: string, campaignChannel: string) => {
+    const hasSms = isConnected('twilio');
+    const hasEmail = isConnected('resend');
+    const needsSms = campaignChannel === 'sms' || campaignChannel === 'both';
+    const needsEmail = campaignChannel === 'email' || campaignChannel === 'both';
+    if ((needsSms && !hasSms) || (needsEmail && !hasEmail)) {
+      toast({ title: 'Coming soon', description: 'Connect the required messaging service in Settings first.' });
+      return;
+    }
+    setSendingCampaignId(campaignId);
+    try {
+      const { error } = await supabase.functions.invoke('execute-campaign', { body: { campaign_id: campaignId } });
+      if (error) throw error;
+      toast({ title: `Campaign sent to ${filteredClients.length} clients!` });
+    } catch (err: any) {
+      toast({ title: 'Send failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setSendingCampaignId(null);
+    }
+  };
+
   if (isLoading) return <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-28 rounded-lg" />)}</div>;
 
   return (
