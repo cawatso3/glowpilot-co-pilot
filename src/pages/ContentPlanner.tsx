@@ -290,7 +290,7 @@ export default function ContentPlanner() {
                                 <PublishButton label="Post to Google" fnName="publish-gbp-post" ideaId={idea.id} successMsg="Posted to Google Business!" />
                               )}
                             </div>
-                          )
+                          )}
                           <div className="flex items-center gap-2 pt-1" onClick={e => e.stopPropagation()}>
                             <Button variant="outline" size="sm" onClick={() => openDialog(idea)}>
                               <Pencil className="h-3 w-3" /> Edit
