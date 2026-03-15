@@ -1,5 +1,6 @@
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
+import { useContentCalendarSettings } from '@/hooks/useContentCalendarSettings';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -25,9 +27,13 @@ const INTEGRATIONS = [
   { name: 'SendGrid (Email)', category: 'Messaging', desc: 'Send email campaigns' },
 ];
 
+const CONTENT_PILLARS = ['educational', 'transformation', 'behind_the_scenes', 'testimonial', 'promotional', 'trending', 'personal'];
+const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
   const { profile, isLoading, updateProfile } = useProfile(user?.id);
+  const { settings: calSettings, isLoading: calLoading, upsertSettings } = useContentCalendarSettings(user?.id);
   const { toast } = useToast();
 
   const [form, setForm] = useState({
@@ -40,7 +46,13 @@ export default function SettingsPage() {
     google_business_profile_url: '',
     booking_platform: 'none' as BookingPlatform,
   });
+
+  // Content preferences state
   const [postsGoal, setPostsGoal] = useState(4);
+  const [filmingDay, setFilmingDay] = useState('');
+  const [contentPillars, setContentPillars] = useState<string[]>(['educational', 'transformation', 'behind_the_scenes', 'promotional']);
+  const [tiktokTime, setTiktokTime] = useState('');
+  const [instagramTime, setInstagramTime] = useState('');
 
   useEffect(() => {
     if (profile) {
@@ -57,9 +69,34 @@ export default function SettingsPage() {
     }
   }, [profile]);
 
+  useEffect(() => {
+    if (calSettings) {
+      setPostsGoal(calSettings.posts_per_week_goal ?? 4);
+      setFilmingDay(calSettings.preferred_filming_day || '');
+      setContentPillars(calSettings.content_pillars || ['educational', 'transformation', 'behind_the_scenes', 'promotional']);
+      const times = calSettings.preferred_posting_times as Record<string, string> | null;
+      setTiktokTime(times?.tiktok || '');
+      setInstagramTime(times?.instagram || '');
+    }
+  }, [calSettings]);
+
   const handleSave = async () => {
     await updateProfile.mutateAsync(form);
     toast({ title: 'Settings saved!' });
+  };
+
+  const handleSaveContent = async () => {
+    const postingTimes: Record<string, string> = {};
+    if (tiktokTime) postingTimes.tiktok = tiktokTime;
+    if (instagramTime) postingTimes.instagram = instagramTime;
+
+    await upsertSettings.mutateAsync({
+      posts_per_week_goal: postsGoal,
+      preferred_filming_day: filmingDay || null,
+      content_pillars: contentPillars,
+      preferred_posting_times: Object.keys(postingTimes).length > 0 ? postingTimes : null,
+    });
+    toast({ title: 'Content preferences saved!' });
   };
 
   const handleSignOut = async () => {
@@ -132,10 +169,59 @@ export default function SettingsPage() {
       <Card className="border-none shadow-low">
         <CardHeader><CardTitle className="text-lg">Content Preferences</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <Label>Posts per week goal: {postsGoal}</Label>
-            <Slider value={[postsGoal]} onValueChange={([v]) => setPostsGoal(v)} min={1} max={7} step={1} />
-          </div>
+          {calLoading ? (
+            <Skeleton className="h-20 rounded-lg" />
+          ) : (
+            <>
+              <div className="space-y-3">
+                <Label>Posts per week goal: {postsGoal}</Label>
+                <Slider value={[postsGoal]} onValueChange={([v]) => setPostsGoal(v)} min={1} max={7} step={1} />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Preferred filming day</Label>
+                <Select value={filmingDay} onValueChange={setFilmingDay}>
+                  <SelectTrigger><SelectValue placeholder="No preference" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No preference</SelectItem>
+                    {DAYS_OF_WEEK.map(d => <SelectItem key={d} value={d.toLowerCase()}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Content pillars</Label>
+                <div className="flex flex-wrap gap-3">
+                  {CONTENT_PILLARS.map(p => (
+                    <label key={p} className="flex items-center gap-1.5 text-sm capitalize">
+                      <Checkbox
+                        checked={contentPillars.includes(p)}
+                        onCheckedChange={(checked) => {
+                          setContentPillars(prev => checked ? [...prev, p] : prev.filter(x => x !== p));
+                        }}
+                      />
+                      {p.replace(/_/g, ' ')}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>TikTok posting time</Label>
+                  <Input type="time" value={tiktokTime} onChange={(e) => setTiktokTime(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Instagram posting time</Label>
+                  <Input type="time" value={instagramTime} onChange={(e) => setInstagramTime(e.target.value)} />
+                </div>
+              </div>
+
+              <Button onClick={handleSaveContent} disabled={upsertSettings.isPending}>
+                <Save className="h-4 w-4" /> Save Content Preferences
+              </Button>
+            </>
+          )}
         </CardContent>
       </Card>
 

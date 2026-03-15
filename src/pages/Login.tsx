@@ -5,13 +5,15 @@ import { GlowPilotLogo } from '@/components/GlowPilotLogo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [useMagicLink, setUseMagicLink] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
   const { signIn, signInWithMagicLink } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -19,23 +21,28 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
-    if (useMagicLink) {
-      const { error } = await signInWithMagicLink(email);
-      if (error) {
-        toast({ title: 'Error', description: error.message, variant: 'destructive' });
-      } else {
-        toast({ title: 'Check your email', description: 'We sent you a magic link to sign in.' });
-      }
+    const { error } = await signIn(email, password);
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } else {
-      const { error } = await signIn(email, password);
-      if (error) {
-        toast({ title: 'Error', description: error.message, variant: 'destructive' });
-      } else {
-        navigate('/dashboard');
-      }
+      navigate('/dashboard');
     }
     setLoading(false);
+  };
+
+  const handleMagicLink = async () => {
+    if (!email) {
+      toast({ title: 'Enter your email', description: 'Please enter your email address first.', variant: 'destructive' });
+      return;
+    }
+    setMagicLinkLoading(true);
+    const { error } = await signInWithMagicLink(email);
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      setMagicLinkSent(true);
+    }
+    setMagicLinkLoading(false);
   };
 
   return (
@@ -52,30 +59,43 @@ export default function Login() {
             <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required />
           </div>
 
-          {!useMagicLink && (
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
+          </div>
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Signing in...' : useMagicLink ? 'Send Magic Link' : 'Sign In'}
+            {loading ? 'Signing in...' : 'Sign In'}
           </Button>
         </form>
 
-        <div className="text-center space-y-2">
-          <button
-            type="button"
-            onClick={() => setUseMagicLink(!useMagicLink)}
-            className="text-sm text-primary hover:underline"
-          >
-            {useMagicLink ? 'Use password instead' : 'Sign in with magic link'}
-          </button>
-          <p className="text-sm text-muted-foreground">
-            Don't have an account? <Link to="/signup" className="text-primary hover:underline">Sign up</Link>
-          </p>
+        {/* Divider */}
+        <div className="flex items-center gap-3">
+          <hr className="flex-1 border-border" />
+          <span className="text-xs text-muted-foreground">or</span>
+          <hr className="flex-1 border-border" />
         </div>
+
+        {/* Magic Link */}
+        {magicLinkSent ? (
+          <Card className="border-none shadow-low">
+            <CardContent className="p-4 text-center space-y-2">
+              <p className="text-sm font-medium">Check your email! ✉️</p>
+              <p className="text-xs text-muted-foreground">We sent a magic link to <strong>{email}</strong>. Click it to sign in.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-center text-muted-foreground">Sign in with magic link</p>
+            <Button variant="outline" className="w-full" onClick={handleMagicLink} disabled={magicLinkLoading}>
+              {magicLinkLoading ? 'Sending...' : 'Send Magic Link'}
+            </Button>
+          </div>
+        )}
+
+        <p className="text-sm text-center text-muted-foreground">
+          Don't have an account? <Link to="/signup" className="text-primary hover:underline">Sign up</Link>
+        </p>
       </div>
     </div>
   );

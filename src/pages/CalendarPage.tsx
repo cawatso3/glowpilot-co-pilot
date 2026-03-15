@@ -6,7 +6,7 @@ import { useClients } from '@/hooks/useClients';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
 import { Zap, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 
-const HOURS = Array.from({ length: 13 }, (_, i) => i + 8); // 8am-8pm
+const HOURS = Array.from({ length: 13 }, (_, i) => i + 8);
 
 export default function CalendarPage() {
   const { user } = useAuth();
@@ -25,12 +25,25 @@ export default function CalendarPage() {
   const { toast } = useToast();
   const [weekOffset, setWeekOffset] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newAppt, setNewAppt] = useState({ client_id: '', service_name: '', appointment_date: format(new Date(), 'yyyy-MM-dd'), start_time: '10:00', end_time: '11:00', service_price: '' });
+  const [newAppt, setNewAppt] = useState({
+    client_id: '', service_name: '', appointment_date: format(new Date(), 'yyyy-MM-dd'),
+    start_time: '10:00', end_time: '11:00', service_price: '',
+  });
 
   const weekStart = addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), weekOffset * 7);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-
   const openGaps = gaps.filter(g => g.status === 'open');
+
+  const openDialogForSlot = (day: Date, hour: number) => {
+    const h = hour.toString().padStart(2, '0');
+    const endHour = (hour + 1).toString().padStart(2, '0');
+    setNewAppt({
+      client_id: '', service_name: '',
+      appointment_date: format(day, 'yyyy-MM-dd'),
+      start_time: `${h}:00`, end_time: `${endHour}:00`, service_price: '',
+    });
+    setDialogOpen(true);
+  };
 
   const handleCreate = async () => {
     await createAppointment.mutateAsync({
@@ -51,68 +64,25 @@ export default function CalendarPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Calendar & Gaps</h1>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm"><Plus className="h-4 w-4" /> Add Appointment</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>New Appointment</DialogTitle></DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Client</Label>
-                <Select value={newAppt.client_id} onValueChange={(v) => setNewAppt({ ...newAppt, client_id: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
-                  <SelectContent>
-                    {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Service</Label>
-                <Input value={newAppt.service_name} onChange={(e) => setNewAppt({ ...newAppt, service_name: e.target.value })} placeholder="e.g. Hydrating Facial" />
-              </div>
-              <div className="space-y-2">
-                <Label>Date</Label>
-                <Input type="date" value={newAppt.appointment_date} onChange={(e) => setNewAppt({ ...newAppt, appointment_date: e.target.value })} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>Start</Label>
-                  <Input type="time" value={newAppt.start_time} onChange={(e) => setNewAppt({ ...newAppt, start_time: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>End</Label>
-                  <Input type="time" value={newAppt.end_time} onChange={(e) => setNewAppt({ ...newAppt, end_time: e.target.value })} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Price ($)</Label>
-                <Input type="number" value={newAppt.service_price} onChange={(e) => setNewAppt({ ...newAppt, service_price: e.target.value })} placeholder="0.00" />
-              </div>
-              <Button onClick={handleCreate} className="w-full" disabled={createAppointment.isPending}>Add Appointment</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Button size="sm" onClick={() => { setNewAppt({ client_id: '', service_name: '', appointment_date: format(new Date(), 'yyyy-MM-dd'), start_time: '10:00', end_time: '11:00', service_price: '' }); setDialogOpen(true); }}>
+          <Plus className="h-4 w-4" /> Add Appointment
+        </Button>
       </div>
 
-      {/* Gap Stats */}
       <div className="flex gap-4 text-sm">
         <div className="flex items-center gap-1"><span className="font-semibold">{openGaps.length}</span> gaps detected</div>
         <div className="flex items-center gap-1"><span className="font-semibold">{gaps.filter(g => g.status === 'filled').length}</span> filled</div>
       </div>
 
-      {/* Week Navigation */}
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="icon" onClick={() => setWeekOffset(w => w - 1)}><ChevronLeft className="h-4 w-4" /></Button>
         <span className="text-sm font-medium">{format(weekDays[0], 'MMM d')} — {format(weekDays[6], 'MMM d, yyyy')}</span>
         <Button variant="ghost" size="icon" onClick={() => setWeekOffset(w => w + 1)}><ChevronRight className="h-4 w-4" /></Button>
       </div>
 
-      {/* Calendar Grid */}
       <div className="overflow-x-auto">
         <div className="min-w-[700px]">
           <div className="grid grid-cols-8 gap-px bg-border rounded-lg overflow-hidden">
-            {/* Header */}
             <div className="bg-card p-2" />
             {weekDays.map(day => (
               <div key={day.toISOString()} className={`bg-card p-2 text-center text-xs font-medium ${isSameDay(day, new Date()) ? 'text-primary' : ''}`}>
@@ -120,7 +90,6 @@ export default function CalendarPage() {
               </div>
             ))}
 
-            {/* Time rows */}
             {HOURS.map(hour => (
               <>
                 <div key={`label-${hour}`} className="bg-card p-2 text-xs text-muted-foreground text-right pr-3">
@@ -137,9 +106,14 @@ export default function CalendarPage() {
                     g.gap_start_time <= hourStr && g.gap_end_time > hourStr &&
                     g.status === 'open'
                   );
+                  const isEmpty = !appt && !gap;
 
                   return (
-                    <div key={`${day.toISOString()}-${hour}`} className="bg-card p-1 min-h-[3rem] relative">
+                    <div
+                      key={`${day.toISOString()}-${hour}`}
+                      className={`bg-card p-1 min-h-[3rem] relative ${isEmpty ? 'hover:bg-primary/5 cursor-pointer transition-colors' : ''}`}
+                      onClick={() => { if (isEmpty) openDialogForSlot(day, hour); }}
+                    >
                       {appt && appt.start_time === hourStr && (
                         <div className="absolute inset-1 rounded-md bg-primary/10 border border-primary/20 p-1">
                           <p className="text-xs font-medium truncate">{appt.service_name}</p>
@@ -161,7 +135,6 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Gap Alerts */}
       {openGaps.length > 0 && (
         <div className="space-y-3">
           <h2 className="font-display text-lg font-semibold">Gap Alerts</h2>
@@ -188,6 +161,47 @@ export default function CalendarPage() {
           ))}
         </div>
       )}
+
+      {/* New Appointment Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>New Appointment</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Client</Label>
+              <Select value={newAppt.client_id} onValueChange={(v) => setNewAppt({ ...newAppt, client_id: v })}>
+                <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
+                <SelectContent>
+                  {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Service</Label>
+              <Input value={newAppt.service_name} onChange={(e) => setNewAppt({ ...newAppt, service_name: e.target.value })} placeholder="e.g. Hydrating Facial" />
+            </div>
+            <div className="space-y-2">
+              <Label>Date</Label>
+              <Input type="date" value={newAppt.appointment_date} onChange={(e) => setNewAppt({ ...newAppt, appointment_date: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Start</Label>
+                <Input type="time" value={newAppt.start_time} onChange={(e) => setNewAppt({ ...newAppt, start_time: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>End</Label>
+                <Input type="time" value={newAppt.end_time} onChange={(e) => setNewAppt({ ...newAppt, end_time: e.target.value })} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Price ($)</Label>
+              <Input type="number" value={newAppt.service_price} onChange={(e) => setNewAppt({ ...newAppt, service_price: e.target.value })} placeholder="0.00" />
+            </div>
+            <Button onClick={handleCreate} className="w-full" disabled={createAppointment.isPending}>Add Appointment</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
