@@ -72,7 +72,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (calSettings) {
       setPostsGoal(calSettings.posts_per_week_goal ?? 4);
-      setFilmingDay(calSettings.preferred_filming_day || '');
+      setFilmingDay(calSettings.preferred_filming_day || 'none');
       setContentPillars(calSettings.content_pillars || ['educational', 'transformation', 'behind_the_scenes', 'promotional']);
       const times = calSettings.preferred_posting_times as Record<string, string> | null;
       setTiktokTime(times?.tiktok || '');
