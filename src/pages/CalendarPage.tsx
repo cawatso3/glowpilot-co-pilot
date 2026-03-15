@@ -3,17 +3,21 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAppointments } from '@/hooks/useAppointments';
 import { useCalendarGaps } from '@/hooks/useCalendarGaps';
 import { useClients } from '@/hooks/useClients';
+import { useIntegrations } from '@/hooks/useIntegrations';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
-import { Zap, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { Zap, Plus, ChevronLeft, ChevronRight, RefreshCw, Info, Loader2 } from 'lucide-react';
 
 const HOURS = Array.from({ length: 13 }, (_, i) => i + 8);
 
@@ -22,13 +26,18 @@ export default function CalendarPage() {
   const { appointments, isLoading, createAppointment } = useAppointments(user?.id);
   const { gaps } = useCalendarGaps(user?.id);
   const { clients } = useClients(user?.id);
+  const { getIntegration, isConnected } = useIntegrations(user?.id);
   const { toast } = useToast();
   const [weekOffset, setWeekOffset] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [newAppt, setNewAppt] = useState({
     client_id: '', service_name: '', appointment_date: format(new Date(), 'yyyy-MM-dd'),
     start_time: '10:00', end_time: '11:00', service_price: '',
   });
+
+  const hasBooking = isConnected('acuity') || isConnected('square') || isConnected('vagaro');
+  const bookingIntegration = getIntegration('acuity') || getIntegration('square') || getIntegration('vagaro');
 
   const weekStart = addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), weekOffset * 7);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -58,15 +67,54 @@ export default function CalendarPage() {
     toast({ title: 'Appointment added!' });
   };
 
+  const handleSync = async () => {
+    const provider = bookingIntegration?.provider;
+    if (!provider) return;
+    setSyncing(true);
+    try {
+      const fnName = provider === 'acuity' ? 'sync-acuity' : provider === 'square' ? 'sync-square' : 'sync-vagaro';
+      const { error } = await supabase.functions.invoke(fnName, { body: { user_id: user?.id } });
+      if (error) throw error;
+      toast({ title: 'Sync complete!' });
+    } catch (err: any) {
+      toast({ title: 'Sync failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   if (isLoading) return <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-32 rounded-lg" />)}</div>;
 
   return (
     <div className="space-y-6">
+      {!hasBooking && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            Connect a booking platform in Settings to auto-detect calendar gaps. Currently showing manually entered appointments only.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Calendar & Gaps</h1>
-        <Button size="sm" onClick={() => { setNewAppt({ client_id: '', service_name: '', appointment_date: format(new Date(), 'yyyy-MM-dd'), start_time: '10:00', end_time: '11:00', service_price: '' }); setDialogOpen(true); }}>
-          <Plus className="h-4 w-4" /> Add Appointment
-        </Button>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold">Calendar & Gaps</h1>
+          {hasBooking && bookingIntegration?.last_sync_at && (
+            <span className="text-xs text-muted-foreground">
+              Last synced {formatDistanceToNow(new Date(bookingIntegration.last_sync_at), { addSuffix: true })}
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {hasBooking && (
+            <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing}>
+              {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Sync Now
+            </Button>
+          )}
+          <Button size="sm" onClick={() => { setNewAppt({ client_id: '', service_name: '', appointment_date: format(new Date(), 'yyyy-MM-dd'), start_time: '10:00', end_time: '11:00', service_price: '' }); setDialogOpen(true); }}>
+            <Plus className="h-4 w-4" /> Add Appointment
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-4 text-sm">
@@ -162,7 +210,6 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* New Appointment Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>New Appointment</DialogTitle></DialogHeader>
