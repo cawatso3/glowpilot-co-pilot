@@ -87,9 +87,30 @@ export default function ReviewsPage() {
 
   const handleRespond = async (reviewId: string) => {
     await updateReview.mutateAsync({ id: reviewId, response_text: responseText, responded_at: new Date().toISOString() });
+    if (postToGoogle && isConnected('google_business')) {
+      try {
+        await supabase.functions.invoke('reply-gbp-review', { body: { review_id: reviewId, response_text: responseText } });
+      } catch (err: any) {
+        toast({ title: 'Could not post to Google', description: err.message, variant: 'destructive' });
+      }
+    }
     setRespondingTo(null);
     setResponseText('');
+    setPostToGoogle(false);
     toast({ title: 'Response saved!' });
+  };
+
+  const handleSyncReviews = async () => {
+    setSyncingReviews(true);
+    try {
+      const { error } = await supabase.functions.invoke('sync-gbp-reviews', { body: { user_id: user?.id } });
+      if (error) throw error;
+      toast({ title: 'Reviews synced!' });
+    } catch (err: any) {
+      toast({ title: 'Sync failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setSyncingReviews(false);
+    }
   };
 
   const handleSaveSettings = async () => {
