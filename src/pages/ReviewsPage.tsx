@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useReviews } from '@/hooks/useReviews';
 import { useClients } from '@/hooks/useClients';
 import { useReviewRequestSettings } from '@/hooks/useReviewRequestSettings';
+import { useIntegrations } from '@/hooks/useIntegrations';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,12 +11,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Star, Sparkles, Send, CheckCircle, AlertCircle, TrendingUp, TrendingDown, Minus, Save } from 'lucide-react';
-import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
+import { Star, Sparkles, Send, CheckCircle, AlertCircle, TrendingUp, TrendingDown, Minus, Save, RefreshCw, Loader2 } from 'lucide-react';
+import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval, formatDistanceToNow } from 'date-fns';
 import type { ReviewPlatform } from '@/types/database';
 
 const PLATFORM_COLORS: Record<ReviewPlatform, string> = {

@@ -561,6 +561,28 @@ export default function ContentPlanner() {
   );
 }
 
+function PublishButton({ label, fnName, ideaId, successMsg }: { label: string; fnName: string; ideaId: string; successMsg: string }) {
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+  const handlePublish = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.functions.invoke(fnName, { body: { content_idea_id: ideaId } });
+      if (error) throw error;
+      toast({ title: successMsg });
+    } catch (err: any) {
+      toast({ title: 'Publish failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <Button variant="outline" size="sm" onClick={handlePublish} disabled={loading}>
+      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />} {label}
+    </Button>
+  );
+}
+
 function CalendarContent({ ideas, onDayClick }: { ideas: ContentIdea[]; onDayClick: (d: Date) => void }) {
   const today = new Date();
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
