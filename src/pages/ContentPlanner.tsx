@@ -277,6 +277,20 @@ export default function ContentPlanner() {
                           {idea.scheduled_date && (
                             <p className="text-xs text-muted-foreground">📅 Scheduled: {format(new Date(idea.scheduled_date), 'MMM d, yyyy')}{idea.scheduled_time ? ` at ${idea.scheduled_time}` : ''}</p>
                           )}
+                          {/* Publish buttons */}
+                          {idea.status === 'scheduled' && idea.scheduled_date && (
+                            <div className="flex gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
+                              {isConnected('tiktok') && (idea.platform === 'tiktok' || idea.platform === 'all') && (
+                                <PublishButton label="Upload to TikTok" fnName="upload-tiktok-draft" ideaId={idea.id} successMsg="Uploaded as draft to TikTok! Open the app to publish." />
+                              )}
+                              {isConnected('instagram') && (idea.platform === 'instagram' || idea.platform === 'all') && (
+                                <PublishButton label="Publish to Instagram" fnName="publish-instagram" ideaId={idea.id} successMsg="Published to Instagram!" />
+                              )}
+                              {isConnected('google_business') && (idea.platform === 'google_business' || idea.platform === 'all') && (
+                                <PublishButton label="Post to Google" fnName="publish-gbp-post" ideaId={idea.id} successMsg="Posted to Google Business!" />
+                              )}
+                            </div>
+                          )
                           <div className="flex items-center gap-2 pt-1" onClick={e => e.stopPropagation()}>
                             <Button variant="outline" size="sm" onClick={() => openDialog(idea)}>
                               <Pencil className="h-3 w-3" /> Edit
