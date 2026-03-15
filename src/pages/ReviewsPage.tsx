@@ -180,7 +180,21 @@ export default function ReviewsPage() {
 
       {/* Review Feed */}
       <div className="space-y-3">
-        <h2 className="font-display text-lg font-semibold">Review Feed</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-lg font-semibold">Review Feed</h2>
+          {isConnected('google_business') && (
+            <div className="flex items-center gap-2">
+              {getIntegration('google_business')?.last_sync_at && (
+                <span className="text-xs text-muted-foreground">
+                  Synced {formatDistanceToNow(new Date(getIntegration('google_business')!.last_sync_at!), { addSuffix: true })}
+                </span>
+              )}
+              <Button variant="outline" size="sm" onClick={handleSyncReviews} disabled={syncingReviews}>
+                {syncingReviews ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Sync Reviews
+              </Button>
+            </div>
+          )}
+        </div>
         {reviews.length === 0 ? (
           <Card className="border-none shadow-low"><CardContent className="p-8 text-center text-muted-foreground">No reviews yet. Send review requests after appointments to start building your reputation!</CardContent></Card>
         ) : (
