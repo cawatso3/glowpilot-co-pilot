@@ -4,6 +4,7 @@ import { useContentIdeas } from '@/hooks/useContentIdeas';
 import { useContentCalendarSettings } from '@/hooks/useContentCalendarSettings';
 import { useIntegrations } from '@/hooks/useIntegrations';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
