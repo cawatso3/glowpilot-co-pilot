@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useContentIdeas } from '@/hooks/useContentIdeas';
 import { useContentCalendarSettings } from '@/hooks/useContentCalendarSettings';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useIntegrations } from '@/hooks/useIntegrations';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
