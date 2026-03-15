@@ -34,7 +34,10 @@ export default function ReviewsPage() {
   const { reviews, isLoading, createReview, updateReview } = useReviews(user?.id);
   const { clients } = useClients(user?.id);
   const { settings, isLoading: settingsLoading, upsertSettings } = useReviewRequestSettings(user?.id);
+  const { isConnected, getIntegration } = useIntegrations(user?.id);
   const { toast } = useToast();
+  const [syncingReviews, setSyncingReviews] = useState(false);
+  const [postToGoogle, setPostToGoogle] = useState(false);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [responseText, setResponseText] = useState('');
   const [manualRequestOpen, setManualRequestOpen] = useState(false);
