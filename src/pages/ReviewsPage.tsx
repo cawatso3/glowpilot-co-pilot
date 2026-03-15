@@ -237,6 +237,12 @@ export default function ReviewsPage() {
                 ) : respondingTo === review.id ? (
                   <div className="space-y-2">
                     <Textarea value={responseText} onChange={(e) => setResponseText(e.target.value)} placeholder="Write your response..." rows={3} />
+                    {isConnected('google_business') && (
+                      <label className="flex items-center gap-2 text-xs">
+                        <Checkbox checked={postToGoogle} onCheckedChange={(c) => setPostToGoogle(!!c)} />
+                        Post response to Google Business
+                      </label>
+                    )}
                     <div className="flex gap-2">
                       <Button size="sm" onClick={() => handleRespond(review.id)} disabled={updateReview.isPending || !responseText}>
                         <Send className="h-4 w-4" /> Send
